@@ -1,11 +1,11 @@
 import PicklingBuild.enableQuasiquotesIn210
 
 val commonSettings = Seq(
-    organization := "org.scalajs",
-    version := "0.4-SNAPSHOT",
+    organization := "be.doeraene",
+    version := "0.4.1-SNAPSHOT",
     normalizedName ~= { _.replace("scala-js", "scalajs") },
     homepage := Some(url("http://scala-js.org/")),
-    licenses += ("BSD New", url("https://github.com/scala-js/scala-js/blob/master/LICENSE")),
+    licenses += ("BSD 3-Clause", url("http://opensource.org/licenses/BSD-3-Clause")),
     scalaVersion := "2.11.5",
     crossScalaVersions := Seq("2.10.4", "2.11.5"),
     scalacOptions ++= Seq(
@@ -15,21 +15,32 @@ val commonSettings = Seq(
         "-encoding", "utf8"
     ),
 
+    scmInfo := Some(ScmInfo(
+        url("https://github.com/scala-js/scala-js-pickling"),
+        "scm:git:git@github.com:scala-js/scala-js-pickling.git",
+        Some("scm:git:git@github.com:scala-js/scala-js-pickling.git"))),
+
+    publishMavenStyle := true,
+
     publishTo := {
-      val isSnapshot = version.value.endsWith("-SNAPSHOT")
-      val snapshotsOrReleases = if (isSnapshot) "snapshots" else "releases"
-      val resolver = Resolver.sftp(
-          s"scala-js-$snapshotsOrReleases-publish",
-          "repo.scala-js.org",
-          s"/home/scalajsrepo/www/repo/$snapshotsOrReleases")(Resolver.ivyStylePatterns)
-      Seq("PUBLISH_USER", "PUBLISH_PASS").map(scala.util.Properties.envOrNone) match {
-        case Seq(Some(user), Some(pass)) =>
-          Some(resolver as (user, pass))
-        case _ =>
-          None
-      }
+      val nexus = "https://oss.sonatype.org/"
+      if (isSnapshot.value)
+        Some("snapshots" at nexus + "content/repositories/snapshots")
+      else
+        Some("releases" at nexus + "service/local/staging/deploy/maven2")
     },
-    publishMavenStyle := false
+
+    pomExtra := (
+      <developers>
+        <developer>
+          <id>sjrd</id>
+          <name>Sébastien Doeraene</name>
+          <url>https://github.com/sjrd/</url>
+        </developer>
+      </developers>
+    ),
+
+    pomIncludeRepository := { _ => false }
 )
 
 lazy val root = project.in(file("."))
@@ -38,10 +49,9 @@ lazy val root = project.in(file("."))
       publish := {},
       publishLocal := {}
   )
-  .aggregate(core, corejvm, js, playjson, tests)
+  .aggregate(corejs, corejvm, js, playjson, tests)
 
-lazy val core = project
-  .enablePlugins(ScalaJSPlugin)
+lazy val core = crossProject.crossType(CrossType.Pure)
   .settings(commonSettings: _*)
   .settings(enableQuasiquotesIn210: _*)
   .settings(
@@ -50,15 +60,8 @@ lazy val core = project
       "org.scala-lang" % "scala-reflect" % scalaVersion.value
   )
 
-lazy val corejvm = project
-  .settings(commonSettings: _*)
-  .settings(enableQuasiquotesIn210: _*)
-  .settings(
-    sourceDirectory := (sourceDirectory in core).value,
-    name := "Scala.js pickling core jvm",
-    libraryDependencies +=
-      "org.scala-lang" % "scala-reflect" % scalaVersion.value
-  )
+lazy val corejvm = core.jvm
+lazy val corejs = core.js
 
 lazy val js = project
   .enablePlugins(ScalaJSPlugin)
@@ -66,7 +69,7 @@ lazy val js = project
   .settings(
     name := "Scala.js pickling"
   )
-  .dependsOn(core)
+  .dependsOn(corejs)
 
 lazy val playjson = project
   .settings(commonSettings: _*)
@@ -87,6 +90,6 @@ lazy val tests = project
     name := "Scala.js pickling tests",
     libraryDependencies +=
 	"com.lihaoyi" %%% "utest" % "0.3.0" % "test",
-    testFrameworks += new TestFramework("utest.runner.Framework")
+	testFrameworks += new TestFramework("utest.runner.Framework")
   )
   .dependsOn(js)

@@ -1,4 +1,4 @@
-# Scala.js Pickling 0.3
+# Scala.js Pickling 0.4.0
 
 Scala.js Pickling is a small serialization (aka pickling) library for
 [Scala.js](https://www.scala-js.org/). It also cross-compiles on the JVM so
@@ -11,7 +11,7 @@ Therefore, types that have to be pickled and unpickled must be registered
 explicitly, (at least) once, in a `PicklerRegistry` beforehand:
 
 ```scala
-import org.scalajs.spickling._
+import be.doeraene.spickling._
 
 // custom data types
 case class Person(name: String, age: Int)
@@ -30,8 +30,10 @@ After that, the case class `Person` and the case object `TrivialCaseObject`
 can be pickled an unpickled using the following in Scala.js:
 
 ```scala
+import scala.scalajs.js
+
 // import the implicits for the js.Any pickle format (~JSON objects)
-import org.scalajs.spickling.jsany._
+import be.doeraene.spickling.jsany._
 
 // pickle and unpickle
 val pickle: js.Any = PicklerRegistry.pickle(Person("John", 24))
@@ -45,40 +47,74 @@ On the JVM, a pickle format for the Play! JSON library is provided by default,
 and is used similarly:
 
 ```scala
+import play.api.libs.json._
+
 // import the implicits for the Play! JSON pickle format
-import org.scalajs.spickling.playjson._
+import be.doeraene.spickling.playjson._
 
 // pickle and unpickle
 val pickle: JsValue = PicklerRegistry.pickle(Person("John", 24))
 val value: Any = PicklerRegistry.unpickle(pickle)
 ```
 
+## Important caveat with `Byte`, `Short`, `Float` and `Double`
+
+Serializing a `Byte`, `Short`, `Float` or `Double` on the JS side and
+deserializing it on the JVM side gives unexpected results.
+
+Instead of receiving a value of the type you began with, you will systematically
+receive an `Int` is the *value* fits in a `Int`, and a `Double` otherwise.
+In particular, even when the original value is typed as a `Double`, you can
+receive an `Int`.
+
+**This will cause the deserialization to go berskerk if the destination type
+cannot handle `Int`!**
+
+Work around: never use these 4 numeric types in the data structures you want to
+pickle and unpickle. Use `java.lang.Number` instead, which can accommodate both
+`Int`s and `Double`s, then use its `doubleValue()` method (or another).
+
+## Alternatives
+
+Before getting started, you should consider alternative serialization frameworks
+for Scala.js. Scala.js Pickling is rarely the best one. All the alternatives
+do not require classes to be registered in advance, for example. They also do
+more at compile-time (and are therefore faster), and do not have the caveat
+about numeric types documented hereabove.
+
+Here are the alternatives known at the time of this writing:
+
+* [uPickle](https://github.com/lihaoyi/upickle)
+* [Prickle](https://github.com/benhutchison/prickle)
+
+The main advantage of Scala.js Pickling with respect to these alternatives is
+that it is able to serialize and deserialize data whose statically known type
+is not sealed, in particular, `Any`.
+
 ## Getting Started
 
-Scala.js Pickling is published in the
-[scala-js-releases repo on Bintray](https://bintray.com/scala-js/scala-js-releases),
-which is resolved by default for Scala.js projects.
+Scala.js Pickling is published on Maven Central.
 
-Hence, in a Scala.js project, all you need to do is to add the following to
-your `build.sbt`:
+On the JS side, all you need to do is to add the following to your `build.sbt`:
 
 ```scala
-libraryDependencies += "org.scalajs" %%% "scalajs-pickling" % "0.3"
+libraryDependencies += "be.doeraene" %%% "scalajs-pickling" % "0.4.0"
 ```
 
-On the server side of a Play! application, you will need to declare the
-resolver explicitly, and use the `scalajs-pickling-play-json` package:
+On the JVM side, with Play!, use:
 
 ```scala
-resolvers += Resolver.url("scala-js-releases",
-    url("http://dl.bintray.com/content/scala-js/scala-js-releases"))(
-    Resolver.ivyStylePatterns)
-
-libraryDependencies += "org.scalajs" %% "scalajs-pickling-play-json" % "0.3"
+libraryDependencies += "be.doeraene" %% "scalajs-pickling-play-json" % "0.4.0"
 ```
 
-scalajs-pickling 0.3 is built and published for Scala.js 0.5.0-M3 and following
-in the 0.5.x series, with both Scala 2.10 and 2.11.
+If you want to depend on the cross-compiling core, use:
+
+```scala
+libraryDependencies += "be.doeraene" %%% "scalajs-pickling-core" % "0.4.0"
+```
+
+scalajs-pickling 0.4.0 is built and published for Scala.js 0.6.x, with both
+Scala 2.10 and 2.11.
 
 ## Reference
 
@@ -165,7 +201,7 @@ trait PReader[P] {
 }
 ```
 
-The packages `org.scalajs.spickling.jsany` and `org.scalajs.spickling.playjson`
+The packages `be.doeraene.spickling.jsany` and `be.doeraene.spickling.playjson`
 provide implicit pickle builders and readers for `js.Any` in Scala.js, and
 `JsValue` in Play! JSON, respectively. You may define your own if you want to
 work with a different implementation of JSON.
